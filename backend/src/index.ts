@@ -10,6 +10,7 @@ import { MongoClient } from 'mongodb';
 import env from './environments';
 import mountPaymentsEndpoints from './handlers/payments';
 import mountUserEndpoints from './handlers/users';
+import mountSubmissionsEndpoints from './handlers/submissions';
 
 // We must import typedefs for ts-node-dev to pick them up when they change (even though tsc would supposedly
 // have no problem here)
@@ -80,6 +81,11 @@ app.use('/payments', paymentsRouter);
 const userRouter = express.Router();
 mountUserEndpoints(userRouter);
 app.use('/user', userRouter);
+
+// Submissions endpoint under /submissions
+const submissionsRouter = express.Router();
+mountSubmissionsEndpoints(submissionsRouter);
+app.use('/submissions', submissionsRouter);
 
 // Hello World page to check everything works:
 app.get('/', async (_, res) => {
