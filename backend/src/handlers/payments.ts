@@ -2,15 +2,18 @@ import axios from "axios";
 import { Router } from "express";
 import platformAPIClient from "../services/platformAPIClient";
 import "../types/session";
+import initializePiNetwork from "../services/PiNodeJS";
 
 export default function mountPaymentsEndpoints(router: Router) {
+  const pi = initializePiNetwork();
+
   // handle the incomplete payment
   router.post('/incomplete', async (req, res) => {
     const payment = req.body.payment;
     const paymentId = payment.identifier;
     const txid = payment.transaction && payment.transaction.txid;
     const txURL = payment.transaction && payment.transaction._link;
-
+    console.log("txid: ", txid, "txURL: ", txURL);
     /* 
       implement your logic here
       e.g. verifying the payment, delivering the item to the user, etc...
@@ -111,5 +114,50 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { cancelled: true } });
     return res.status(200).json({ message: `Cancelled the payment ${paymentId}` });
-  })
+  });
+
+  /** 
+   * Logic for making an app-to-user payment 
+   * TODO: handle incomplete payments
+  */
+
+  router.post('/make_payment', async (req, res) => {
+    const app = req.app;
+
+    // hard-coded to my wallet for now, need to read off the borrower request later
+    const userUid = '36360451-108e-42f1-b04e-84c3a5eb7164';
+    const paymentData = {
+      amount: 1,
+      memo: 'Test A2U Payment',
+      metadata: {productId: 'apple-pie-1'}, // can't be blank
+      uid: userUid,
+    }
+
+    const paymentsCollection = app.locals.paymentsCollection;
+
+    try {
+      const paymentId = await pi.createPayment(paymentData);
+      console.log("Payment created with ID: ", paymentId);
+      
+      const result = await paymentsCollection.insertOne({
+        _id: paymentId,
+        uid: userUid,
+        amount: paymentData.amount,
+        memo: paymentData.memo,
+        txid: null,
+      });
+      
+      const txid = await pi.submitPayment(paymentId);
+      console.log("Payment submitted with tx ID: ", txid);
+
+      const updateResult = await paymentsCollection.updateOne({ _id: paymentId }, { $set: { txid: txid } });
+  
+      const completedPayment = await pi.completePayment(paymentId, txid);
+  
+      res.send(completedPayment);
+  
+    } catch (err) {
+      console.error("Error processing payment: ", err);
+    }
+  });
 }

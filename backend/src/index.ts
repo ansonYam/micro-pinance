@@ -18,8 +18,12 @@ import mountSubmissionsEndpoints from './handlers/submissions';
 import "./types/session";
 
 const dbName = env.mongo_db_name;
-const mongoUri = `mongodb://${env.mongo_host}/${dbName}`;
+// const mongoUri = `mongodb://${env.mongo_host}/${dbName}`;
+const mongoUri = `mongodb+srv://${env.mongo_user}:${env.mongo_password}@${env.mongo_host}/${dbName}?retryWrites=true&w=majority`;
+
 const mongoClientOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
   authSource: "admin",
   auth: {
     username: env.mongo_user,
@@ -101,6 +105,8 @@ app.listen(8000, async () => {
     const db = client.db(dbName);
     app.locals.orderCollection = db.collection('orders');
     app.locals.userCollection = db.collection('users');
+    app.locals.submissionCollection = db.collection('submissions');
+    app.locals.paymentsCollection = db.collection('payments');
     console.log('Connected to MongoDB on: ', mongoUri)
   } catch (err) {
     console.error('Connection to MongoDB failed: ', err)

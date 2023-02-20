@@ -1,10 +1,12 @@
 import { Router } from "express";
 
 export default function mountSubmissionsEndpoints(router: Router) {
+    // TODO: somehow this broke while I wasn't looking, but the read route is working fine...
     router.post('/submitText', async (req, res) => {
         const text = req.body.text;
         const myTxtObj = { text: text };
-
+        console.log("myTxtObj: ", myTxtObj);
+        
         const app = req.app;
         const submissionCollection = app.locals.submissionCollection;
 

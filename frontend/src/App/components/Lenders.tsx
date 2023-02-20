@@ -1,32 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
+import BorrowerCard from './BorrowerCard';
 
 interface Props {
-    viewSubmissions: () => void,
+    borrowers: Array<{
+        _id: number;
+        text: string;
+    }>,
+    entriesPerPage: number;
 }
 
-interface State {
-    submissions: Submission[],
-}
+const Lenders = ({ borrowers, entriesPerPage }: Props) => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const totalPages = Math.ceil(borrowers.length / entriesPerPage);
+    const startIndex = (currentPage - 1) * entriesPerPage;
+    const endIndex = startIndex + entriesPerPage;
+    const displayedBorrowers = borrowers.slice(startIndex, endIndex);
 
-interface Submission {
-    _id: string,
-    text: string,
-}
-
-export default function Lenders(props: Props, state: State) {
     return (
-        <section id="lenders-section">
-            <h2>Lenders</h2>
-            <button onClick={props.viewSubmissions}>View Borrowers</button>
-            <ul>
-                {state.submissions.map((submission, index) => {
-                    return (
-                        <li key={index}>
-                            {submission._id}: {submission.text}
-                        </li>
-                    );
-                })}
-            </ul>
-        </section>
-    )
-}
+        <div>
+            {borrowers.map(borrower => (
+                <div key={borrower._id}>
+                    <p>{borrower.text}</p>
+                </div>
+            ))}
+            <div>
+                <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                >
+                    Previous
+                </button>
+                <span>{currentPage} of {totalPages}</span>
+                <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                    Next
+                </button>
+            </div>
+
+        </div>
+    );
+};
+
+export default Lenders;

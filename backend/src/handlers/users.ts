@@ -49,4 +49,7 @@ export default function mountUserEndpoints(router: Router) {
     req.session.currentUser = null;
     return res.status(200).json({ message: "User signed out" });
   });
+
+  // search all user's transactions (do we need to do this every time?)
+  
 }
