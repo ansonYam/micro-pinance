@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { FormEvent, useState, useEffect } from 'react';
 import axios from 'axios';
 import Header from './components/Header';
+import SignIn from './components/SignIn';
 import Borrowers from './components/Borrowers';
 import Lenders from './components/Lenders';
-import SignIn from './components/SignIn';
-import BorrowerCard from './components/BorrowerCard';
+import { Borrower } from './components/Lenders';
 
-// we will put stuff in here to signify that the tx is for a repayment etc
-// what does a transaction on this blockchain even look like?
-type MyPaymentMetadata = {};
+type MyPaymentMetadata = {
+    loan_recipient: string,
+};
 
 type AuthResult = {
     accessToken: string,
@@ -87,6 +87,7 @@ export default function App() {
         setShowModal(false);
     }
 
+    // A2U payment
     const payBorrower = async () => {
         if (user === null) {
             return setShowModal(true);
@@ -126,8 +127,50 @@ export default function App() {
         setSection(e.target.id);
     };
 
-    const handleSubmit = () => {
-        return axiosClient.post('/submissions/submitText');
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+        event.preventDefault();
+        if (user === null) {
+            return setShowModal(true);
+        };
+
+        const loanAmount = event.currentTarget.loanAmount.value;
+        const businessDescription = event.currentTarget.businessDescription.value;
+        const data = { loanAmount, businessDescription };
+        try {
+            const response = await axiosClient.post('/submissions/submitText', data, config);
+            console.log(response);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    const handleLoanClick = async (borrower: Borrower, ) => {
+        if (user === null) {
+            return setShowModal(true);
+        }
+
+        let amount = borrower.amount;
+        let memo = `Loan payment intended for user ${borrower.user}`;
+        let metadata = { loan_recipient: borrower.user};
+
+        const paymentData = {
+            amount,
+            memo,
+            metadata,
+        };
+
+        const callbacks = {
+            onReadyForServerApproval,
+            onReadyForServerCompletion,
+            onCancel,
+            onError,
+        }
+
+        const payment = await window.Pi.createPayment(paymentData, callbacks).then(function (payment: any) {
+            console.log("payment from Pi.createPayment: ", payment);
+        }).catch(function (error: any) {
+            console.error(error);
+        })
     }
 
     const fetchSubmissions = async () => {
@@ -145,38 +188,37 @@ export default function App() {
                 <Header
                     user={user}
                     onSignIn={signIn}
-                    onSignOut={signOut} />
+                    onSignOut={signOut}
+                />
+                <button id="about" onClick={handleClick}>About</button>
                 <button id="borrowers" onClick={handleClick}>Borrowers</button>
                 <button id="lenders" onClick={handleClick}>Lenders</button>
             </header>
             <main className="App-main">
-                {section === 'borrowers' &&
-                    <Borrowers
-                        handleSubmit={() => handleSubmit}
-                    />}
-                {section === 'lenders' &&
-                <div>
-                    <Lenders
-                        borrowers={borrowers}
-                        entriesPerPage={10}
-                    />
-                    <div id="test-A2U">
-                        <p>We should be paying users here. Let's try it!</p>
-                        <button id="a2u-payment" onClick={() => payBorrower()}>Pay User</button>
+                {section === "about" &&
+                    <div>
+                        Welcome to Micro-Pinance, a peer-to-peer micro-lending platform that connects borrowers and lenders around the world.
                     </div>
-                </div>
+                }
+                {section === "borrowers" &&
+                    <Borrowers
+                        handleSubmit={handleSubmit}
+                    />}
+                {section === "lenders" &&
+                    <div>
+                        <Lenders
+                            borrowers={borrowers}
+                            entriesPerPage={10}
+                            handleLoanClick={handleLoanClick}
+                        />
+                        <div id="test-A2U">
+                            <p>We should be paying users here. Let's try it!</p>
+                            <button id="a2u-payment" onClick={() => payBorrower()}>Pay User</button>
+                        </div>
+                    </div>
                 }
             </main>
             {showModal && <SignIn onSignIn={signIn} onModalClose={onModalClose} />}
         </div>
     );
 }
-
-/**<BorrowerCard 
-    name="Coco"
-    description="I will use the loan to buy a nicer oven, in order to bake more pies"
-    loanAmount={3.14}
-    pictureURL="https://images.unsplash.com/photo-1629228136815-0fedb1808520"
-    pictureCaption="Picture by Kelcie Herald - https://unsplash.com/photos/K_GkRKJJE-I."
-    onClickLoan={() => payBorrower("", 3.14, {})}
-/>*/

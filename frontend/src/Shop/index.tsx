@@ -93,8 +93,11 @@ export default function Shop() {
       onCancel,
       onError
     };
-    const payment = await window.Pi.createPayment(paymentData, callbacks);
-    console.log(payment);
+    const payment = await window.Pi.createPayment(paymentData, callbacks).then(function(payment: any) {
+      console.log("payment from Pi.createPayment: ", payment);
+    }).catch(function(error: any) {
+      console.error(error);
+    })
   }
 
   const onIncompletePaymentFound = (payment: PaymentDTO) => {
@@ -104,12 +107,12 @@ export default function Shop() {
 
   const onReadyForServerApproval = (paymentId: string) => {
     console.log("onReadyForServerApproval", paymentId);
-    axiosClient.post('/payments/approve', {paymentId}, config);
+    return axiosClient.post('/payments/approve', {paymentId}, config);
   }
 
   const onReadyForServerCompletion = (paymentId: string, txid: string) => {
     console.log("onReadyForServerCompletion", paymentId, txid);
-    axiosClient.post('/payments/complete', {paymentId, txid}, config);
+    return axiosClient.post('/payments/complete', {paymentId, txid}, config);
   }
 
   const onCancel = (paymentId: string) => {

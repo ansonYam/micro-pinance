@@ -19,7 +19,6 @@ export default function mountUserEndpoints(router: Router) {
     }
 
     let currentUser = await userCollection.findOne({ uid: auth.user.uid });
-
     if (currentUser) {
       await userCollection.updateOne({
         _id: currentUser._id
@@ -40,7 +39,6 @@ export default function mountUserEndpoints(router: Router) {
     }
 
     req.session.currentUser = currentUser;
-
     return res.status(200).json({ message: "User signed in" });
   });
 
@@ -48,8 +46,5 @@ export default function mountUserEndpoints(router: Router) {
   router.get('/signout', async (req, res) => {
     req.session.currentUser = null;
     return res.status(200).json({ message: "User signed out" });
-  });
-
-  // search all user's transactions (do we need to do this every time?)
-  
+  });  
 }

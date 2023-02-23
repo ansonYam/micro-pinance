@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
-import BorrowerCard from './BorrowerCard';
+import LoanCard from './LoanCard';
 
-interface Props {
-    borrowers: Array<{
-        _id: number;
-        text: string;
-    }>,
-    entriesPerPage: number;
+export type Borrower = {
+    _id: string;
+    user: string;
+    amount: number;
+    memo: string;
+    amount_raised: number;
 }
 
-const Lenders = ({ borrowers, entriesPerPage }: Props) => {
+interface Props {
+    borrowers: Borrower[];
+    entriesPerPage: number;
+    handleLoanClick: (borrower: Borrower) => void;
+}
+
+const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
     const [currentPage, setCurrentPage] = useState(1);
     const totalPages = Math.ceil(borrowers.length / entriesPerPage);
     const startIndex = (currentPage - 1) * entriesPerPage;
@@ -19,9 +25,14 @@ const Lenders = ({ borrowers, entriesPerPage }: Props) => {
     return (
         <div>
             {borrowers.map(borrower => (
-                <div key={borrower._id}>
-                    <p>{borrower.text}</p>
-                </div>
+                <LoanCard
+                    key={borrower._id}
+                    user={borrower.user}
+                    amount={borrower.amount}
+                    memo={borrower.memo}
+                    amount_raised={borrower.amount_raised}
+                    handleLoanClick={() => handleLoanClick(borrower)}
+                />
             ))}
             <div>
                 <button

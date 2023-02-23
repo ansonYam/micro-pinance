@@ -1,8 +1,8 @@
 import axios from "axios";
 import { Router } from "express";
 import platformAPIClient from "../services/platformAPIClient";
-import "../types/session";
 import initializePiNetwork from "../services/PiNodeJS";
+import "../types/session";
 
 export default function mountPaymentsEndpoints(router: Router) {
   const pi = initializePiNetwork();
@@ -50,6 +50,7 @@ export default function mountPaymentsEndpoints(router: Router) {
 
   // approve the current payment
   router.post('/approve', async (req, res) => {
+    // this route only works in firefox, some setting in chrome interferes with my session storage
     if (!req.session.currentUser) {
       return res.status(401).json({ error: 'unauthorized', message: "User needs to sign in first" });
     }
@@ -98,6 +99,7 @@ export default function mountPaymentsEndpoints(router: Router) {
     // let Pi server know that the payment is completed
     await platformAPIClient.post(`/v2/payments/${paymentId}/complete`, { txid });
     return res.status(200).json({ message: `Completed the payment ${paymentId}` });
+    // update the 'amount_raised' field only once the tx has been completed
   });
 
   // handle the cancelled payment
@@ -120,7 +122,6 @@ export default function mountPaymentsEndpoints(router: Router) {
    * Logic for making an app-to-user payment 
    * TODO: handle incomplete payments
   */
-
   router.post('/make_payment', async (req, res) => {
     const app = req.app;
 
@@ -129,7 +130,7 @@ export default function mountPaymentsEndpoints(router: Router) {
     const paymentData = {
       amount: 1,
       memo: 'Test A2U Payment',
-      metadata: {productId: 'apple-pie-1'}, // can't be blank
+      metadata: { productId: 'apple-pie-1' }, // can't be blank
       uid: userUid,
     }
 
@@ -138,7 +139,7 @@ export default function mountPaymentsEndpoints(router: Router) {
     try {
       const paymentId = await pi.createPayment(paymentData);
       console.log("Payment created with ID: ", paymentId);
-      
+
       const result = await paymentsCollection.insertOne({
         _id: paymentId,
         uid: userUid,
@@ -146,16 +147,16 @@ export default function mountPaymentsEndpoints(router: Router) {
         memo: paymentData.memo,
         txid: null,
       });
-      
+
       const txid = await pi.submitPayment(paymentId);
       console.log("Payment submitted with tx ID: ", txid);
 
       const updateResult = await paymentsCollection.updateOne({ _id: paymentId }, { $set: { txid: txid } });
-  
+
       const completedPayment = await pi.completePayment(paymentId, txid);
-  
+
       res.send(completedPayment);
-  
+
     } catch (err) {
       console.error("Error processing payment: ", err);
     }

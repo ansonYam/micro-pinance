@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 interface Props {
-    handleSubmit: () => void;
+    handleSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }
 
 export default function Borrowers(props: Props) {
