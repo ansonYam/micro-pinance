@@ -3,6 +3,7 @@ import { Router } from "express";
 import platformAPIClient from "../services/platformAPIClient";
 import initializePiNetwork from "../services/PiNodeJS";
 import "../types/session";
+import { ObjectId } from 'mongodb';
 
 export default function mountPaymentsEndpoints(router: Router) {
   const pi = initializePiNetwork();
@@ -85,16 +86,38 @@ export default function mountPaymentsEndpoints(router: Router) {
   router.post('/complete', async (req, res) => {
     const app = req.app;
 
+    // console.log(req.body);
+
     const paymentId = req.body.paymentId;
     const txid = req.body.txid;
-    const orderCollection = app.locals.orderCollection;
+    const borrowerId = req.body.borrowerId;
+    const newAmount = req.body.amount;
 
+    const orderCollection = app.locals.orderCollection;
+    const submissionCollection = app.locals.submissionCollection;
     /* 
       implement your logic here
       e.g. verify the transaction, deliver the item to the user, etc...
     */
 
     await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true } });
+
+    try {
+      const submission = await submissionCollection.findOne({ _id: new ObjectId(borrowerId) });
+      if (submission) {
+        // console.log('submission.amount_raised: ', submission.amount_raised);
+
+        const updatedSubmission = await submissionCollection.findOneAndUpdate(
+          { _id: new ObjectId(borrowerId) },
+          { $set: { amount_raised: submission.amount_raised + newAmount } },
+        );
+        console.log(`Submission ${borrowerId} updated.`);
+      } else {
+        console.log(`Submission ${borrowerId} not found.`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
 
     // let Pi server know that the payment is completed
     await platformAPIClient.post(`/v2/payments/${paymentId}/complete`, { txid });

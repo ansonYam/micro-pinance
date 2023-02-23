@@ -28,6 +28,7 @@ export default function mountSubmissionsEndpoints(router: Router) {
         const app = req.app;
         const submissionCollection = app.locals.submissionCollection;
         const submissions = await submissionCollection.find().toArray();
+        // console.log(submissions);
         res.send(submissions);
     })
 }

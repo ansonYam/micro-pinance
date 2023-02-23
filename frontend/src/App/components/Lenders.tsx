@@ -12,7 +12,7 @@ export type Borrower = {
 interface Props {
     borrowers: Borrower[];
     entriesPerPage: number;
-    handleLoanClick: (borrower: Borrower) => void;
+    handleLoanClick: (loan: { borrower: Borrower; loanAmount: number; }) => void;
 }
 
 const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
@@ -27,12 +27,9 @@ const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
             {borrowers.map(borrower => (
                 <LoanCard
                     key={borrower._id}
-                    user={borrower.user}
-                    amount={borrower.amount}
-                    memo={borrower.memo}
-                    amount_raised={borrower.amount_raised}
-                    handleLoanClick={() => handleLoanClick(borrower)}
-                />
+                    borrower={borrower}
+                    handleLoanClick={(loan) => handleLoanClick(loan)}
+                    />
             ))}
             <div>
                 <button

@@ -105,10 +105,12 @@ export default function App() {
         axiosClient.post('/payments/approve', { paymentId }, config);
     }
 
+    /**
     const onReadyForServerCompletion = (paymentId: string, txid: string) => {
         console.log("onReadyForServerCompletion", paymentId, txid);
         axiosClient.post('/payments/complete', { paymentId, txid }, config);
     }
+    */
 
     const onCancel = (paymentId: string) => {
         console.log("onCancel", paymentId);
@@ -144,14 +146,15 @@ export default function App() {
         }
     }
 
-    const handleLoanClick = async (borrower: Borrower, ) => {
+    const handleLoanClick = async (borrower: Borrower, loanAmount: number) => {
         if (user === null) {
             return setShowModal(true);
         }
 
-        let amount = borrower.amount;
+        let amount = loanAmount;
+        console.log("Loan amount: ", amount); // shows up, e.g. 'Loan amount: 2'
         let memo = `Loan payment intended for user ${borrower.user}`;
-        let metadata = { loan_recipient: borrower.user};
+        let metadata = { loan_recipient: borrower.user, borrower_id: borrower._id };
 
         const paymentData = {
             amount,
@@ -161,7 +164,10 @@ export default function App() {
 
         const callbacks = {
             onReadyForServerApproval,
-            onReadyForServerCompletion,
+            onReadyForServerCompletion: async (paymentId: string, txid: string, borrowerId: string, amount: number) => {
+                console.log("onReadyForServerCompletion", paymentId, txid, metadata.borrower_id, paymentData.amount); // does not show up?
+                await axiosClient.post('/payments/complete', { paymentId, txid, borrowerId: metadata.borrower_id, amount: paymentData.amount }, config);
+            },
             onCancel,
             onError,
         }
@@ -209,7 +215,9 @@ export default function App() {
                         <Lenders
                             borrowers={borrowers}
                             entriesPerPage={10}
-                            handleLoanClick={handleLoanClick}
+                            handleLoanClick={({ borrower, loanAmount }) =>
+                                handleLoanClick(borrower, loanAmount)
+                            }
                         />
                         <div id="test-A2U">
                             <p>We should be paying users here. Let's try it!</p>
