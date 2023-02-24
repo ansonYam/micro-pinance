@@ -1,5 +1,48 @@
-.container {
-    background-color: #f5f5f5;
+.loan-card {
+    display: flex;
+    flex-direction: column;
+    font-family: Arial, sans-serif;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding: 20px;
     border: 1px solid #ddd;
-    padding: 16px;
+    border-radius: 5px;
+}
+
+.loan-card h4 {
+    margin-top: 0;
+}
+
+.loan-card p {
+    margin: 10px 0;
+}
+
+.loan-card progress {
+    width: 100%;
+}
+
+.loan-card label {
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+.loan-card input[type="number"] {
+    width: 80px;
+    padding: 5px;
+    border-radius: 4px;
+    border: 2px solid #ccc;
+}
+
+.loan-card button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: #fff;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.loan-card button:hover {
+    background-color: #45a049;
 }

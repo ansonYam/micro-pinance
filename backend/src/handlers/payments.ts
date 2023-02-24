@@ -5,6 +5,19 @@ import initializePiNetwork from "../services/PiNodeJS";
 import "../types/session";
 import { ObjectId } from 'mongodb';
 
+interface Order {
+  _id: string;
+  pi_payment_id: string;
+  product_id: string;
+  amount: number;
+  user: string;
+  txid: string;
+  recipient: string;
+  paid: boolean;
+  cancelled: boolean;
+  created_at: Date;
+}
+
 export default function mountPaymentsEndpoints(router: Router) {
   const pi = initializePiNetwork();
 
@@ -69,9 +82,11 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     await orderCollection.insertOne({
       pi_payment_id: paymentId,
-      product_id: currentPayment.data.metadata.productId,
+      product_id: currentPayment.data.metadata.borrower_id,
+      amount: currentPayment.data.amount,
       user: req.session.currentUser.uid,
       txid: null,
+      recipient: currentPayment.data.metadata.loan_recipient,
       paid: false,
       cancelled: false,
       created_at: new Date()
@@ -100,7 +115,7 @@ export default function mountPaymentsEndpoints(router: Router) {
       e.g. verify the transaction, deliver the item to the user, etc...
     */
 
-    await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true } });
+    await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true, } });
 
     try {
       const submission = await submissionCollection.findOne({ _id: new ObjectId(borrowerId) });
@@ -184,4 +199,46 @@ export default function mountPaymentsEndpoints(router: Router) {
       console.error("Error processing payment: ", err);
     }
   });
+
+  // TODO: filter before pulling in the entire collection
+  router.get('/matching_user', async (req, res) => {
+    if (!req.session.currentUser) {
+      return res.status(401).json({ error: 'unauthorized', message: "User needs to sign in first" });
+    }
+    const app = req.app;
+    const user = req.session.currentUser.uid;
+
+    const orderCollection = app.locals.orderCollection;
+
+    try {
+      const orders: Order[] = await orderCollection.find().toArray();
+      // console.log(orders);
+      const filteredOrders = orders.filter(order => order.user === user);
+      // console.log(filteredOrders);
+      res.send(filteredOrders);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'No matching users' });
+    }
+  });
+
+  router.get('/matching_recipient', async (req, res) => {
+    if (!req.session.currentUser) {
+      return res.status(401).json({ error: 'unauthorized', message: "User needs to sign in first" });
+    }
+    const app = req.app;
+    const user = req.session.currentUser.uid;
+
+    const orderCollection = app.locals.orderCollection;
+
+    try {
+      const orders: Order[] = await orderCollection.find().toArray();
+      const filteredOrders = orders.filter(order => order.recipient === user);
+      res.send(filteredOrders);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'No matching users' });
+    }
+  });
+
 }

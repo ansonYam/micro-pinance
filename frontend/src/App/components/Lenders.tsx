@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import LoanCard from './LoanCard';
-
-export type Borrower = {
-    _id: string;
-    user: string;
-    amount: number;
-    memo: string;
-    amount_raised: number;
-}
+import { Borrower } from '../types/borrower';
+import { Order } from '../types/order';
 
 interface Props {
+    outstandingLoans: Order[];
     borrowers: Borrower[];
     entriesPerPage: number;
     handleLoanClick: (loan: { borrower: Borrower; loanAmount: number; }) => void;
 }
 
-const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
+const Lenders = ({ outstandingLoans, borrowers, entriesPerPage, handleLoanClick }: Props) => {
     const [currentPage, setCurrentPage] = useState(1);
     const totalPages = Math.ceil(borrowers.length / entriesPerPage);
     const startIndex = (currentPage - 1) * entriesPerPage;
@@ -23,13 +18,26 @@ const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
     const displayedBorrowers = borrowers.slice(startIndex, endIndex);
 
     return (
-        <div>
+        <section id="lenders-section">
+            <h2>For Lenders</h2>
+            <div>
+                <h3>Your existing loans to borrowers:</h3>
+                <ul>
+                {outstandingLoans.map((loan) => (
+                    <li key={loan._id}>{loan.amount} Test-π to {loan.product_id}</li>
+                ))}
+            </ul>
+            </div>
+
+            <div>
+                <h3>Make a new loan: </h3>
+            </div>
             {borrowers.map(borrower => (
                 <LoanCard
                     key={borrower._id}
                     borrower={borrower}
                     handleLoanClick={(loan) => handleLoanClick(loan)}
-                    />
+                />
             ))}
             <div>
                 <button
@@ -46,8 +54,7 @@ const Lenders = ({ borrowers, entriesPerPage, handleLoanClick }: Props) => {
                     Next
                 </button>
             </div>
-
-        </div>
+        </section>
     );
 };
 

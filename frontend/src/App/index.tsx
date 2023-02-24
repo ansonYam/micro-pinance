@@ -4,7 +4,8 @@ import Header from './components/Header';
 import SignIn from './components/SignIn';
 import Borrowers from './components/Borrowers';
 import Lenders from './components/Lenders';
-import { Borrower } from './components/Lenders';
+import { Borrower } from './types/borrower';
+import { Order } from './types/order';
 
 type MyPaymentMetadata = {
     loan_recipient: string,
@@ -61,6 +62,8 @@ export default function App() {
     const [showModal, setShowModal] = useState<boolean>(false);
     const [section, setSection] = useState('home');
     const [borrowers, setBorrowers] = useState([]);
+    const [outstandingLoans, setOutstandingLoans] = useState<Order[]>([]);
+    const [loansToBeRepaid, setLoansToBeRepaid] = useState<Order[]>([]);
 
     const signIn = async () => {
         const scopes = ['username', 'payments', 'wallet_address'];
@@ -188,6 +191,32 @@ export default function App() {
         fetchSubmissions().then(data => setBorrowers(data));
     }, []);
 
+    const getUserLoans = async () => {
+        try {
+            const response = await axiosClient.get('/payments/matching_user');
+            setOutstandingLoans(response.data);
+            // console.log(response);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    const getRecipientLoans = async () => {
+        try {
+            const response = await axiosClient.get('/payments/matching_recipient');
+            setLoansToBeRepaid(response.data);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    useEffect(() => {
+        if (user) {
+            getUserLoans();
+            getRecipientLoans();
+        }
+    }, [user]);
+
     return (
         <div className="App">
             <header>
@@ -209,10 +238,12 @@ export default function App() {
                 {section === "borrowers" &&
                     <Borrowers
                         handleSubmit={handleSubmit}
+                        loansToBeRepaid={loansToBeRepaid}
                     />}
                 {section === "lenders" &&
                     <div>
                         <Lenders
+                            outstandingLoans={outstandingLoans}
                             borrowers={borrowers}
                             entriesPerPage={10}
                             handleLoanClick={({ borrower, loanAmount }) =>
