@@ -1,25 +1,15 @@
 import axios from "axios";
 import { Router } from "express";
 import platformAPIClient from "../services/platformAPIClient";
-import initializePiNetwork from "../services/PiNodeJS";
 import "../types/session";
 import { ObjectId } from 'mongodb';
-
-interface Order {
-  _id: string;
-  pi_payment_id: string;
-  product_id: string;
-  amount: number;
-  user: string;
-  txid: string;
-  recipient: string;
-  paid: boolean;
-  cancelled: boolean;
-  created_at: Date;
-}
+import { Order } from '../types/order';
+import processPayment from "../services/processPayment";
+import initializePiNetwork from "../services/PiNodeJS";
+import { Collection, Db } from 'mongodb';
 
 export default function mountPaymentsEndpoints(router: Router) {
-  const pi = initializePiNetwork();
+  // const pi = initializePiNetwork();
 
   // handle the incomplete payment
   router.post('/incomplete', async (req, res) => {
@@ -84,12 +74,12 @@ export default function mountPaymentsEndpoints(router: Router) {
       pi_payment_id: paymentId,
       product_id: currentPayment.data.metadata.borrower_id,
       amount: currentPayment.data.amount,
-      user: req.session.currentUser.uid,
+      lender: req.session.currentUser.uid,
       txid: null,
       recipient: currentPayment.data.metadata.loan_recipient,
       paid: false,
       cancelled: false,
-      created_at: new Date()
+      created_at: new Date(),
     });
 
     // let Pi Servers know that you're ready
@@ -100,8 +90,6 @@ export default function mountPaymentsEndpoints(router: Router) {
   // complete the current payment
   router.post('/complete', async (req, res) => {
     const app = req.app;
-
-    // console.log(req.body);
 
     const paymentId = req.body.paymentId;
     const txid = req.body.txid;
@@ -115,6 +103,10 @@ export default function mountPaymentsEndpoints(router: Router) {
       e.g. verify the transaction, deliver the item to the user, etc...
     */
 
+    let payBorrowerFlag = false;
+    let amount_raised = 0; // will be assigned later
+    let user = "";
+
     await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true, } });
 
     try {
@@ -125,8 +117,28 @@ export default function mountPaymentsEndpoints(router: Router) {
         const updatedSubmission = await submissionCollection.findOneAndUpdate(
           { _id: new ObjectId(borrowerId) },
           { $set: { amount_raised: submission.amount_raised + newAmount } },
+          // { returnOriginal: false } was deprecated
+          { returnDocument: "after" }
         );
-        console.log(`Submission ${borrowerId} updated.`);
+
+        const { amount, fully_funded, _id } = updatedSubmission.value;
+        amount_raised = updatedSubmission.value.amount_raised;
+        user = updatedSubmission.value.user;
+        console.log(`Submission ${borrowerId} updated with new amount raised ${amount_raised}.`);
+
+        if (amount_raised === amount) {
+          if (fully_funded) {
+            console.log(`Borrower ${user} has already been paid out.`);
+          } else {
+            await submissionCollection.updateOne(
+              { _id: new ObjectId(borrowerId) },
+              { $set: { fully_funded: true } },
+            ).then(() => {
+              console.log("Payment amount: ", amount_raised, "loan recipient: ", user);
+              payBorrowerFlag = true;
+            });
+          }
+        }
       } else {
         console.log(`Submission ${borrowerId} not found.`);
       }
@@ -136,9 +148,21 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     // let Pi server know that the payment is completed
     await platformAPIClient.post(`/v2/payments/${paymentId}/complete`, { txid });
+
+    if (payBorrowerFlag) {
+      try {
+        await processPayment(app.locals.db, user, amount_raised, `Funds from ${borrowerId}`, { productId: "apple-pie-1" });
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
     return res.status(200).json({ message: `Completed the payment ${paymentId}` });
-    // update the 'amount_raised' field only once the tx has been completed
   });
+
+  async function callProcessPayment(db: Db) {
+    await processPayment(db, '36360451-108e-42f1-b04e-84c3a5eb7164', 1, `Funds from test payment`, { productId: "apple-pie-1" });
+  }
 
   // handle the cancelled payment
   router.post('/cancelled_payment', async (req, res) => {
@@ -156,50 +180,6 @@ export default function mountPaymentsEndpoints(router: Router) {
     return res.status(200).json({ message: `Cancelled the payment ${paymentId}` });
   });
 
-  /** 
-   * Logic for making an app-to-user payment 
-   * TODO: handle incomplete payments
-  */
-  router.post('/make_payment', async (req, res) => {
-    const app = req.app;
-
-    // hard-coded to my wallet for now, need to read off the borrower request later
-    const userUid = '36360451-108e-42f1-b04e-84c3a5eb7164';
-    const paymentData = {
-      amount: 1,
-      memo: 'Test A2U Payment',
-      metadata: { productId: 'apple-pie-1' }, // can't be blank
-      uid: userUid,
-    }
-
-    const paymentsCollection = app.locals.paymentsCollection;
-
-    try {
-      const paymentId = await pi.createPayment(paymentData);
-      console.log("Payment created with ID: ", paymentId);
-
-      const result = await paymentsCollection.insertOne({
-        _id: paymentId,
-        uid: userUid,
-        amount: paymentData.amount,
-        memo: paymentData.memo,
-        txid: null,
-      });
-
-      const txid = await pi.submitPayment(paymentId);
-      console.log("Payment submitted with tx ID: ", txid);
-
-      const updateResult = await paymentsCollection.updateOne({ _id: paymentId }, { $set: { txid: txid } });
-
-      const completedPayment = await pi.completePayment(paymentId, txid);
-
-      res.send(completedPayment);
-
-    } catch (err) {
-      console.error("Error processing payment: ", err);
-    }
-  });
-
   // TODO: filter before pulling in the entire collection
   router.get('/matching_user', async (req, res) => {
     if (!req.session.currentUser) {
@@ -212,13 +192,11 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     try {
       const orders: Order[] = await orderCollection.find().toArray();
-      // console.log(orders);
-      const filteredOrders = orders.filter(order => order.user === user);
-      // console.log(filteredOrders);
+      const filteredOrders = orders.filter(order => order.lender === user);
       res.send(filteredOrders);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: 'No matching users' });
+      res.status(500).json({ message: 'No matching lenders' });
     }
   });
 
@@ -237,8 +215,7 @@ export default function mountPaymentsEndpoints(router: Router) {
       res.send(filteredOrders);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: 'No matching users' });
+      res.status(500).json({ message: 'No matching borrowers' });
     }
   });
-
 }

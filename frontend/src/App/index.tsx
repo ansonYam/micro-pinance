@@ -4,11 +4,10 @@ import Header from './components/Header';
 import SignIn from './components/SignIn';
 import Borrowers from './components/Borrowers';
 import Lenders from './components/Lenders';
-import { Borrower } from './types/borrower';
+import { Submission } from './types/borrower';
 import { Order } from './types/order';
 
 type MyPaymentMetadata = {
-    loan_recipient: string,
 };
 
 type AuthResult = {
@@ -90,14 +89,6 @@ export default function App() {
         setShowModal(false);
     }
 
-    // A2U payment
-    const payBorrower = async () => {
-        if (user === null) {
-            return setShowModal(true);
-        };
-        axiosClient.post('/payments/make_payment', config);
-    }
-
     const onIncompletePaymentFound = (payment: PaymentDTO) => {
         console.log("onIncompletePaymentFound", payment);
         return axiosClient.post('/payments/incomplete', { payment });
@@ -149,7 +140,7 @@ export default function App() {
         }
     }
 
-    const handleLoanClick = async (borrower: Borrower, loanAmount: number) => {
+    const handleLoanClick = async (borrower: Submission, loanAmount: number) => {
         if (user === null) {
             return setShowModal(true);
         }
@@ -250,10 +241,6 @@ export default function App() {
                                 handleLoanClick(borrower, loanAmount)
                             }
                         />
-                        <div id="test-A2U">
-                            <p>We should be paying users here. Let's try it!</p>
-                            <button id="a2u-payment" onClick={() => payBorrower()}>Pay User</button>
-                        </div>
                     </div>
                 }
             </main>

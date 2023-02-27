@@ -11,6 +11,7 @@ import env from './environments';
 import mountPaymentsEndpoints from './handlers/payments';
 import mountUserEndpoints from './handlers/users';
 import mountSubmissionsEndpoints from './handlers/submissions';
+import job from './services/cron';
 
 // We must import typedefs for ts-node-dev to pick them up when they change (even though tsc would supposedly
 // have no problem here)
@@ -71,6 +72,8 @@ app.use(session({
   }),
 }));
 
+// start the cron job
+job.start();
 
 //
 // II. Mount app endpoints:
@@ -103,6 +106,7 @@ app.listen(8000, async () => {
   try {
     const client = await MongoClient.connect(mongoUri, mongoClientOptions)
     const db = client.db(dbName);
+    app.locals.db = db;
     app.locals.orderCollection = db.collection('orders');
     app.locals.userCollection = db.collection('users');
     app.locals.submissionCollection = db.collection('submissions');

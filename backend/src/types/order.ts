@@ -1,4 +1,4 @@
-export type Order = {
+export interface Order {
     _id: string;
     pi_payment_id: string;
     product_id: string;
@@ -9,4 +9,5 @@ export type Order = {
     paid: boolean;
     cancelled: boolean;
     created_at: Date;
-}
+  }
+  

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import LoanCard from './LoanCard';
-import { Borrower } from '../types/borrower';
+import { Submission } from '../types/borrower';
 import { Order } from '../types/order';
 
 interface Props {
     outstandingLoans: Order[];
-    borrowers: Borrower[];
+    borrowers: Submission[];
     entriesPerPage: number;
-    handleLoanClick: (loan: { borrower: Borrower; loanAmount: number; }) => void;
+    handleLoanClick: (loan: { borrower: Submission; loanAmount: number; }) => void;
 }
 
 const Lenders = ({ outstandingLoans, borrowers, entriesPerPage, handleLoanClick }: Props) => {

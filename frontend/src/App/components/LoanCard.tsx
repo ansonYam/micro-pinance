@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import styles from './LoanCard.module.css';
-import { Borrower } from '../types/borrower';
+import { Submission } from '../types/borrower';
 
 interface Props {
-    borrower: Borrower,
-    handleLoanClick: ({ borrower, loanAmount }: { borrower: Borrower, loanAmount: number }) => void;
+    borrower: Submission,
+    handleLoanClick: ({ borrower, loanAmount }: { borrower: Submission, loanAmount: number }) => void;
 }
 
 export default function LoanCard(props: Props) {

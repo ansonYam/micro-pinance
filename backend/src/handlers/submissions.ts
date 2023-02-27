@@ -1,14 +1,6 @@
 import { Router } from "express";
 import "../types/session";
-
-interface Submission {
-    _id: string;
-    user: string;
-    amount: number;
-    memo: string;
-    amount_raised: number;
-    fully_funded: boolean;
-}
+import { Submission } from "../types/submission";
 
 export default function mountSubmissionsEndpoints(router: Router) {
     // this is defo broken
@@ -38,6 +30,8 @@ export default function mountSubmissionsEndpoints(router: Router) {
             memo: businessDescription,
             amount_raised: 0,
             fully_funded: false,
+            created_at: new Date(),
+            expired: false,
         });
         res.status(200).send('Submission successful!');
     })
