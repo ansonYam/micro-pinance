@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import styles from './LoanCard.module.css';
-import { Submission } from '../types/borrower';
+import { Loan } from '../types/loan';
 
 interface Props {
-    borrower: Submission,
-    handleLoanClick: ({ borrower, loanAmount }: { borrower: Submission, loanAmount: number }) => void;
+    loan: Loan,
+    handleLoanClick: ({ loan, loanAmount }: { loan: Loan, loanAmount: number }) => void;
 }
 
 export default function LoanCard(props: Props) {
@@ -15,27 +15,27 @@ export default function LoanCard(props: Props) {
         setLoanAmount(value);
     }
 
-    const progress = Math.round((props.borrower.amount_raised / props.borrower.amount) * 100);
+    const progress = Math.round((props.loan.amount_raised / props.loan.amount) * 100);
 
     return (
         <div className={styles["loan-card"]}>
-            <h4>Borrower: {props.borrower.user}</h4>
-            <p>How they will use the loan: {props.borrower.memo}</p>
-            <progress value={props.borrower.amount_raised} max={props.borrower.amount} />
+            <h4>Borrower: {props.loan.borrower}</h4>
+            <p>How they will use the loan: {props.loan.memo}</p>
+            <progress value={props.loan.amount_raised} max={props.loan.amount} />
             <div>
-                Raised: {props.borrower.amount_raised} / {props.borrower.amount} Test-π ({progress}%)
+                Raised: {props.loan.amount_raised} / {props.loan.amount} Test-π ({progress}%)
             </div>
             <label htmlFor="loan-amount">Loan amount: </label>
             <input
                 type="number"
                 id="loan-amount"
                 name="loan-amount"
-                min="1" max={props.borrower.amount - props.borrower.amount_raised}
+                min="1" max={props.loan.amount - props.loan.amount_raised}
                 value={loanAmount}
                 onChange={handleLoanAmountChange}
             /> Test-π
             <br></br>
-            <button onClick={() => props.handleLoanClick({ borrower: props.borrower, loanAmount })}>Lend Now</button>
+            <button onClick={() => props.handleLoanClick({ loan: props.loan, loanAmount })}>Lend Now</button>
         </div>
     )
 }

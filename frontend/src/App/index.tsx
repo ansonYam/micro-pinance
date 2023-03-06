@@ -4,11 +4,15 @@ import Header from './components/Header';
 import SignIn from './components/SignIn';
 import Borrowers from './components/Borrowers';
 import Lenders from './components/Lenders';
-import { Submission } from './types/borrower';
-import { Order } from './types/order';
+import { Loan } from './types/loan';
+import { Contribution } from './types/contribution';
 
 type MyPaymentMetadata = {
 };
+
+type ContribsByLoanId = {
+    [loanId: string]: Contribution[];
+}
 
 type AuthResult = {
     accessToken: string,
@@ -60,9 +64,9 @@ export default function App() {
     const [user, setUser] = useState<User | null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
     const [section, setSection] = useState('home');
-    const [borrowers, setBorrowers] = useState([]);
-    const [outstandingLoans, setOutstandingLoans] = useState<Order[]>([]);
-    const [loansToBeRepaid, setLoansToBeRepaid] = useState<Order[]>([]);
+    const [loans, setLoans] = useState([]);
+    const [outstandingLoans, setOutstandingLoans] = useState<Contribution[]>([]);
+    const [loansToBeRepaid, setLoansToBeRepaid] = useState<ContribsByLoanId>({});
 
     const signIn = async () => {
         const scopes = ['username', 'payments', 'wallet_address'];
@@ -94,22 +98,22 @@ export default function App() {
         return axiosClient.post('/payments/incomplete', { payment });
     }
 
+    /**
     const onReadyForServerApproval = (paymentId: string) => {
         console.log("onReadyForServerApproval", paymentId);
         axiosClient.post('/payments/approve', { paymentId }, config);
     }
 
-    /**
     const onReadyForServerCompletion = (paymentId: string, txid: string) => {
         console.log("onReadyForServerCompletion", paymentId, txid);
         axiosClient.post('/payments/complete', { paymentId, txid }, config);
     }
-    */
-
+    
     const onCancel = (paymentId: string) => {
         console.log("onCancel", paymentId);
         return axiosClient.post('/payments/cancelled_payment', { paymentId });
     }
+    */
 
     const onError = (error: Error, payment?: PaymentDTO) => {
         console.log("onError", error);
@@ -133,22 +137,22 @@ export default function App() {
         const businessDescription = event.currentTarget.businessDescription.value;
         const data = { loanAmount, businessDescription };
         try {
-            const response = await axiosClient.post('/submissions/submitText', data, config);
+            const response = await axiosClient.post('/loans/submitloanRequest', data, config);
             console.log(response);
         } catch (error) {
             console.error(error);
         }
     }
 
-    const handleLoanClick = async (borrower: Submission, loanAmount: number) => {
+    const handleLoanClick = async (loan: Loan, loanAmount: number) => {
         if (user === null) {
             return setShowModal(true);
         }
 
         let amount = loanAmount;
-        console.log("Loan amount: ", amount); // shows up, e.g. 'Loan amount: 2'
-        let memo = `Loan payment intended for user ${borrower.user}`;
-        let metadata = { loan_recipient: borrower.user, borrower_id: borrower._id };
+        console.log("Loan amount: ", amount);
+        let memo = `Loan payment intended for user ${loan.borrower}`;
+        let metadata = { loan_recipient: loan.borrower, loan_id: loan._id };
 
         const paymentData = {
             amount,
@@ -157,12 +161,18 @@ export default function App() {
         };
 
         const callbacks = {
-            onReadyForServerApproval,
-            onReadyForServerCompletion: async (paymentId: string, txid: string, borrowerId: string, amount: number) => {
-                console.log("onReadyForServerCompletion", paymentId, txid, metadata.borrower_id, paymentData.amount); // does not show up?
-                await axiosClient.post('/payments/complete', { paymentId, txid, borrowerId: metadata.borrower_id, amount: paymentData.amount }, config);
+            onReadyForServerApproval: (paymentId: string) => {
+                console.log("onReadyForServerApproval", paymentId);
+                return axiosClient.post('/payments/approve', { paymentId }, config);
             },
-            onCancel,
+            onReadyForServerCompletion: (paymentId: string, txid: string, loanId: string, amount: number) => {
+                // console.log("onReadyForServerCompletion", paymentId, txid, metadata.loan_id, paymentData.amount);
+                return axiosClient.post('/payments/complete', { paymentId, txid, loanId: metadata.loan_id, amount: paymentData.amount }, config);
+            },
+            onCancel: (paymentId: string) => {
+                console.log("onCancel", paymentId);
+                return axiosClient.post('/payments/cancelled_payment', { paymentId });
+            },
             onError,
         }
 
@@ -173,14 +183,53 @@ export default function App() {
         })
     }
 
-    const fetchSubmissions = async () => {
-        const response = await axiosClient.get('/submissions/submissions');
+    const handleRepayLoan = async (loanId: string, amount: number, contributions: Contribution[]) => {
+        if (user === null) {
+            return setShowModal(true);
+        }
+        let loanAmount = amount;
+        let memo = `Loan repayment for ${loanId}`;
+        let metadata = { loanId: loanId };
+
+        const paymentData = {
+            loanAmount,
+            memo,
+            metadata,
+        };
+
+        console.log("paymentData: ", paymentData); // up to here is fine
+
+        const callbacks = {
+            onReadyForServerApproval: (paymentId: string) => {
+                console.log("onReadyForServerApproval", paymentId);
+                return axiosClient.post('/repayments/approve', { paymentId }, config);
+            },
+            onReadyForServerCompletion: (paymentId: string, txid: string, loanId: string, amount: number) => {
+                console.log("onReadyForServerCompletion", paymentId, txid, loanId, amount);
+                return axiosClient.post('/repayments/complete', { paymentId, txid, loanId: loanId, amount: amount }, config);
+            },
+            onCancel: (paymentId: string) => {
+                console.log("onCancel", paymentId);
+                return axiosClient.post('/repayments/cancelled_payment', { paymentId });        
+            },
+            onError,
+        }
+
+        const payment = await window.Pi.createPayment(paymentData, callbacks).then(function (payment: any) {
+            console.log("payment from Pi.createPayment: ", payment);
+        }).catch(function (error: any) {
+            console.error(error);
+        })
+    }
+
+    const fetchLoans = async () => {
+        const response = await axiosClient.get('/loans/getLoanRequests');
         return response.data;
     }
 
     useEffect(() => {
-        fetchSubmissions().then(data => setBorrowers(data));
-    }, []);
+        fetchLoans().then(data => setLoans(data));
+    }, [user]);
 
     const getUserLoans = async () => {
         try {
@@ -195,7 +244,19 @@ export default function App() {
     const getRecipientLoans = async () => {
         try {
             const response = await axiosClient.get('/payments/matching_recipient');
-            setLoansToBeRepaid(response.data);
+            const contributions = response.data;
+
+            // Group orders by product_id
+            const loansToBeRepaid = contributions.reduce((acc: ContribsByLoanId, contribution: Contribution) => {
+                if (!acc[contribution.loan_id]) {
+                    acc[contribution.loan_id] = [contribution];
+                } else {
+                    acc[contribution.loan_id].push(contribution);
+                }
+                return acc;
+            }, {});
+            // console.log(loansToBeRepaid, typeof loansToBeRepaid);
+            setLoansToBeRepaid(loansToBeRepaid);
         } catch (err) {
             console.error(err);
         }
@@ -228,17 +289,18 @@ export default function App() {
                 }
                 {section === "borrowers" &&
                     <Borrowers
-                        handleSubmit={handleSubmit}
                         loansToBeRepaid={loansToBeRepaid}
+                        handleRepayLoan={handleRepayLoan}
+                        handleSubmit={handleSubmit}
                     />}
                 {section === "lenders" &&
                     <div>
                         <Lenders
                             outstandingLoans={outstandingLoans}
-                            borrowers={borrowers}
+                            loans={loans}
                             entriesPerPage={10}
-                            handleLoanClick={({ borrower, loanAmount }) =>
-                                handleLoanClick(borrower, loanAmount)
+                            handleLoanClick={({ loan, loanAmount }) =>
+                                handleLoanClick(loan, loanAmount)
                             }
                         />
                     </div>

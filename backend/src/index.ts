@@ -10,7 +10,8 @@ import { MongoClient } from 'mongodb';
 import env from './environments';
 import mountPaymentsEndpoints from './handlers/payments';
 import mountUserEndpoints from './handlers/users';
-import mountSubmissionsEndpoints from './handlers/submissions';
+import mountLoansEndpoints from './handlers/loans';
+import mountRepaymentsEndpoints from './handlers/repayments';
 import job from './services/cron';
 
 // We must import typedefs for ts-node-dev to pick them up when they change (even though tsc would supposedly
@@ -89,10 +90,16 @@ const userRouter = express.Router();
 mountUserEndpoints(userRouter);
 app.use('/user', userRouter);
 
-// Submissions endpoint under /submissions
-const submissionsRouter = express.Router();
-mountSubmissionsEndpoints(submissionsRouter);
-app.use('/submissions', submissionsRouter);
+// Loans endpoint under /submissions
+const loansRouter = express.Router();
+mountLoansEndpoints(loansRouter);
+app.use('/loans', loansRouter);
+
+// Repayments endpoint under /repayments:
+const repaymentsRouter = express.Router();
+mountRepaymentsEndpoints(repaymentsRouter);
+app.use('/repayments', repaymentsRouter);
+
 
 // Hello World page to check everything works:
 app.get('/', async (_, res) => {
@@ -107,10 +114,13 @@ app.listen(8000, async () => {
     const client = await MongoClient.connect(mongoUri, mongoClientOptions)
     const db = client.db(dbName);
     app.locals.db = db;
-    app.locals.orderCollection = db.collection('orders');
     app.locals.userCollection = db.collection('users');
-    app.locals.submissionCollection = db.collection('submissions');
-    app.locals.paymentsCollection = db.collection('payments');
+    app.locals.contributionCollection = db.collection('contributions');
+    app.locals.loanCollection = db.collection('loans');
+    app.locals.paymentCollection = db.collection('payments');
+    app.locals.u2a_repaymentCollection = db.collection('u2a-repayments');
+    app.locals.a2u_repaymentCollection = db.collection('a2u-repayments');
+    app.locals.refundCollection = db.collection('refunds');
     console.log('Connected to MongoDB on: ', mongoUri)
   } catch (err) {
     console.error('Connection to MongoDB failed: ', err)

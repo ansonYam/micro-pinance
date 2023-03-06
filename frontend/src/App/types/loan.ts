@@ -1,6 +1,6 @@
-export interface Submission {
+export type Loan = {
     _id: string;
-    user: string;
+    borrower: string;
     amount: number;
     memo: string;
     amount_raised: number;

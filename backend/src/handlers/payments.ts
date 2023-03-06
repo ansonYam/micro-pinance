@@ -3,14 +3,11 @@ import { Router } from "express";
 import platformAPIClient from "../services/platformAPIClient";
 import "../types/session";
 import { ObjectId } from 'mongodb';
-import { Order } from '../types/order';
+import { Contribution } from '../types/contribution';
+import { Payment } from "../types/payment";
 import processPayment from "../services/processPayment";
-import initializePiNetwork from "../services/PiNodeJS";
-import { Collection, Db } from 'mongodb';
 
 export default function mountPaymentsEndpoints(router: Router) {
-  // const pi = initializePiNetwork();
-
   // handle the incomplete payment
   router.post('/incomplete', async (req, res) => {
     const payment = req.body.payment;
@@ -27,12 +24,12 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     // find the incomplete order
     const app = req.app;
-    const orderCollection = app.locals.orderCollection;
-    const order = await orderCollection.findOne({ pi_payment_id: paymentId });
+    const contributionCollection = app.locals.contributionCollection;
+    const contribution = await contributionCollection.findOne({ pi_payment_id: paymentId });
 
     // order doesn't exist 
-    if (!order) {
-      return res.status(400).json({ message: "Order not found" });
+    if (!contribution) {
+      return res.status(400).json({ message: "Loan contribution not found" });
     }
 
     // check the transaction on the Pi blockchain
@@ -40,12 +37,12 @@ export default function mountPaymentsEndpoints(router: Router) {
     const paymentIdOnBlock = horizonResponse.data.memo;
 
     // and check other data as well e.g. amount
-    if (paymentIdOnBlock !== order.pi_payment_id) {
+    if (paymentIdOnBlock !== contribution.pi_payment_id) {
       return res.status(400).json({ message: "Payment id doesn't match." });
     }
 
     // mark the order as paid
-    await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid, paid: true } });
+    await contributionCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid, paid: true } });
 
     // let Pi Servers know that the payment is completed
     await platformAPIClient.post(`/v2/payments/${paymentId}/complete`, { txid });
@@ -63,20 +60,20 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     const paymentId = req.body.paymentId;
     const currentPayment = await platformAPIClient.get(`/v2/payments/${paymentId}`);
-    const orderCollection = app.locals.orderCollection;
+    const contributionCollection = app.locals.contributionCollection;
 
     /* 
       implement your logic here 
       e.g. creating an order record, reserve an item if the quantity is limited, etc...
     */
 
-    await orderCollection.insertOne({
+    await contributionCollection.insertOne({
       pi_payment_id: paymentId,
-      product_id: currentPayment.data.metadata.borrower_id,
+      loan_id: currentPayment.data.metadata.loan_id,
       amount: currentPayment.data.amount,
       lender: req.session.currentUser.uid,
       txid: null,
-      recipient: currentPayment.data.metadata.loan_recipient,
+      borrower: currentPayment.data.metadata.loan_recipient,
       paid: false,
       cancelled: false,
       created_at: new Date(),
@@ -90,14 +87,13 @@ export default function mountPaymentsEndpoints(router: Router) {
   // complete the current payment
   router.post('/complete', async (req, res) => {
     const app = req.app;
-
     const paymentId = req.body.paymentId;
     const txid = req.body.txid;
-    const borrowerId = req.body.borrowerId;
+    const loanId = req.body.loanId;
     const newAmount = req.body.amount;
 
-    const orderCollection = app.locals.orderCollection;
-    const submissionCollection = app.locals.submissionCollection;
+    const contributionCollection = app.locals.contributionCollection;
+    const loanCollection = app.locals.loanCollection;
     /* 
       implement your logic here
       e.g. verify the transaction, deliver the item to the user, etc...
@@ -105,42 +101,40 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     let payBorrowerFlag = false;
     let amount_raised = 0; // will be assigned later
-    let user = "";
+    let borrower = "";
 
-    await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true, } });
+    await contributionCollection.updateOne({ pi_payment_id: paymentId }, { $set: { txid: txid, paid: true, } });
 
     try {
-      const submission = await submissionCollection.findOne({ _id: new ObjectId(borrowerId) });
-      if (submission) {
-        // console.log('submission.amount_raised: ', submission.amount_raised);
-
-        const updatedSubmission = await submissionCollection.findOneAndUpdate(
-          { _id: new ObjectId(borrowerId) },
-          { $set: { amount_raised: submission.amount_raised + newAmount } },
+      const loan = await loanCollection.findOne({ _id: new ObjectId(loanId) });
+      if (loan) {
+        const updatedLoan = await loanCollection.findOneAndUpdate(
+          { _id: new ObjectId(loanId) },
+          { $set: { amount_raised: loan.amount_raised + newAmount } },
           // { returnOriginal: false } was deprecated
           { returnDocument: "after" }
         );
 
-        const { amount, fully_funded, _id } = updatedSubmission.value;
-        amount_raised = updatedSubmission.value.amount_raised;
-        user = updatedSubmission.value.user;
-        console.log(`Submission ${borrowerId} updated with new amount raised ${amount_raised}.`);
+        const { amount, fully_funded, _id } = updatedLoan.value;
+        amount_raised = updatedLoan.value.amount_raised;
+        borrower = updatedLoan.value.borrower;
+        console.log(`Loan ${loanId} updated with new amount raised ${amount_raised}.`);
 
         if (amount_raised === amount) {
           if (fully_funded) {
-            console.log(`Borrower ${user} has already been paid out.`);
+            console.log(`Borrower ${borrower} has already been paid out.`);
           } else {
-            await submissionCollection.updateOne(
-              { _id: new ObjectId(borrowerId) },
+            await loanCollection.updateOne(
+              { _id: new ObjectId(loanId) },
               { $set: { fully_funded: true } },
             ).then(() => {
-              console.log("Payment amount: ", amount_raised, "loan recipient: ", user);
+              console.log("Payment amount: ", amount_raised, "loan recipient: ", borrower);
               payBorrowerFlag = true;
             });
           }
         }
       } else {
-        console.log(`Submission ${borrowerId} not found.`);
+        console.log(`Loan ${loanId} not found.`);
       }
     } catch (err) {
       console.error(err);
@@ -151,7 +145,8 @@ export default function mountPaymentsEndpoints(router: Router) {
 
     if (payBorrowerFlag) {
       try {
-        await processPayment(app.locals.db, user, amount_raised, `Funds from ${borrowerId}`, { productId: "apple-pie-1" });
+        // TODO: make the memo something useful, or just take it out entirely
+        await processPayment(app.locals.db, borrower, amount_raised, loanId, { productId: "apple-pie-1" });
       } catch (err) {
         console.log(err);
       }
@@ -160,23 +155,19 @@ export default function mountPaymentsEndpoints(router: Router) {
     return res.status(200).json({ message: `Completed the payment ${paymentId}` });
   });
 
-  async function callProcessPayment(db: Db) {
-    await processPayment(db, '36360451-108e-42f1-b04e-84c3a5eb7164', 1, `Funds from test payment`, { productId: "apple-pie-1" });
-  }
-
   // handle the cancelled payment
   router.post('/cancelled_payment', async (req, res) => {
     const app = req.app;
 
     const paymentId = req.body.paymentId;
-    const orderCollection = app.locals.orderCollection;
+    const contributionCollection = app.locals.contributionCollection;
 
     /*
       implement your logic here
       e.g. mark the order record to cancelled, etc...
     */
 
-    await orderCollection.updateOne({ pi_payment_id: paymentId }, { $set: { cancelled: true } });
+    await contributionCollection.updateOne({ pi_payment_id: paymentId }, { $set: { cancelled: true } });
     return res.status(200).json({ message: `Cancelled the payment ${paymentId}` });
   });
 
@@ -188,12 +179,14 @@ export default function mountPaymentsEndpoints(router: Router) {
     const app = req.app;
     const user = req.session.currentUser.uid;
 
-    const orderCollection = app.locals.orderCollection;
+    const contributionCollection = app.locals.contributionCollection;
 
     try {
-      const orders: Order[] = await orderCollection.find().toArray();
-      const filteredOrders = orders.filter(order => order.lender === user);
-      res.send(filteredOrders);
+      const contributions: Contribution[] = await contributionCollection.find().toArray();
+      // console.log(contributions);
+      const filteredContribs = contributions.filter(contribution => contribution.lender === user);
+      // console.log(filteredContribs);
+      res.send(filteredContribs);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'No matching lenders' });
@@ -207,15 +200,18 @@ export default function mountPaymentsEndpoints(router: Router) {
     const app = req.app;
     const user = req.session.currentUser.uid;
 
-    const orderCollection = app.locals.orderCollection;
+    const contributionCollection = app.locals.contributionCollection;
+    const paymentCollection = app.locals.paymentCollection;
 
     try {
-      const orders: Order[] = await orderCollection.find().toArray();
-      const filteredOrders = orders.filter(order => order.recipient === user);
-      res.send(filteredOrders);
+      const payments: Payment[] = await paymentCollection.find({ uid: user }).toArray();
+      const memoFields = payments.map(payment => payment.memo);
+      const contributions = await contributionCollection.find({ loan_id: { $in: memoFields } }).toArray();
+      res.send(contributions);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ message: 'No matching borrowers' });
+      res.status(500).json({ message: 'No matching orders' });
     }
   });
+
 }

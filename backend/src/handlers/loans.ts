@@ -1,10 +1,9 @@
 import { Router } from "express";
 import "../types/session";
-import { Submission } from "../types/submission";
+import { Loan } from "../types/loan";
 
-export default function mountSubmissionsEndpoints(router: Router) {
-    // this is defo broken
-    router.post('/submitText', async (req, res) => {
+export default function mountLoansEndpoints(router: Router) {
+    router.post('/submitloanRequest', async (req, res) => {
         if (!req.session.currentUser) {
             return res.status(401).json({ error: 'unauthorized', message: "User needs to sign in first" });
         }
@@ -20,12 +19,12 @@ export default function mountSubmissionsEndpoints(router: Router) {
             return res.status(400).json({ error: 'invalid_data', message: "Loan amount must be a valid number" });
         }
 
-        const submissionCollection = app.locals.submissionCollection;
+        const loanCollection = app.locals.loanCollection;
 
         // really, the unique key should be the uid,
         // but for development purposes I want to be able to submit more than one loan request
-        await submissionCollection.insertOne({
-            user: req.session.currentUser.uid,
+        await loanCollection.insertOne({
+            borrower: req.session.currentUser.uid,
             amount: amount,
             memo: businessDescription,
             amount_raised: 0,
@@ -37,18 +36,18 @@ export default function mountSubmissionsEndpoints(router: Router) {
     })
 
     // TODO: filter before pulling in the entire collection
-    router.get('/submissions', async (req, res) => {
+    router.get('/getLoanRequests', async (req, res) => {
         const app = req.app;
-        const submissionCollection = app.locals.submissionCollection;
-        const submissions: Submission[] = await submissionCollection.find().toArray();
-        const filteredSubmissions = submissions.filter(submission => {
-            if (submission.amount_raised === submission.amount) {
-                submission.fully_funded = true;
+        const loanCollection = app.locals.loanCollection;
+        const loans: Loan[] = await loanCollection.find().toArray();
+        const filteredLoans = loans.filter(loan => {
+            if (loan.amount_raised === loan.amount) {
+                loan.fully_funded = true;
                 return false;
             }
             return true;
         });
-        // console.log(filteredSubmissions);
-        res.send(filteredSubmissions);
+        // console.log(filteredLoans);
+        res.send(filteredLoans);
     })
 }

@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import LoanCard from './LoanCard';
-import { Submission } from '../types/borrower';
-import { Order } from '../types/order';
+import { Loan } from '../types/loan';
+import { Contribution } from '../types/contribution';
 
 interface Props {
-    outstandingLoans: Order[];
-    borrowers: Submission[];
+    outstandingLoans: Contribution[];
+    loans: Loan[];
     entriesPerPage: number;
-    handleLoanClick: (loan: { borrower: Submission; loanAmount: number; }) => void;
+    handleLoanClick: (loan: { loan: Loan; loanAmount: number; }) => void;
 }
 
-const Lenders = ({ outstandingLoans, borrowers, entriesPerPage, handleLoanClick }: Props) => {
+const Lenders = ({ outstandingLoans, loans, entriesPerPage, handleLoanClick }: Props) => {
     const [currentPage, setCurrentPage] = useState(1);
-    const totalPages = Math.ceil(borrowers.length / entriesPerPage);
+    const totalPages = Math.ceil(loans.length / entriesPerPage);
     const startIndex = (currentPage - 1) * entriesPerPage;
     const endIndex = startIndex + entriesPerPage;
-    const displayedBorrowers = borrowers.slice(startIndex, endIndex);
+    const displayedBorrowers = loans.slice(startIndex, endIndex);
 
     return (
         <section id="lenders-section">
@@ -24,7 +24,7 @@ const Lenders = ({ outstandingLoans, borrowers, entriesPerPage, handleLoanClick 
                 <h3>Your existing loans to borrowers:</h3>
                 <ul>
                 {outstandingLoans.map((loan) => (
-                    <li key={loan._id}>{loan.amount} Test-π to {loan.product_id}</li>
+                    <li key={loan._id}>{loan.amount} Test-π in support of loan ID {loan.loan_id}</li>
                 ))}
             </ul>
             </div>
@@ -32,10 +32,10 @@ const Lenders = ({ outstandingLoans, borrowers, entriesPerPage, handleLoanClick 
             <div>
                 <h3>Make a new loan: </h3>
             </div>
-            {borrowers.map(borrower => (
+            {loans.map(loan => (
                 <LoanCard
-                    key={borrower._id}
-                    borrower={borrower}
+                    key={loan._id}
+                    loan={loan}
                     handleLoanClick={(loan) => handleLoanClick(loan)}
                 />
             ))}
